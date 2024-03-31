@@ -308,45 +308,58 @@ app.get("/material/:id", async (req, res) => {
   
   const userConnections = [];
 
-  io.on("connection", (socket) => {
-      console.log("socket id is ", socket.id);
-  
-      socket.on("userconnect", (data) => {
-          console.log("userconnect", data.displayName, data.meetingid);
-          const other_users = userConnections.filter((p) => p.meeting_id == data.meetingid);
-  
-          userConnections.push({
-              connectionId: socket.id,
-              user_id: data.displayName,
-              meeting_id: data.meetingid,
-          });
-  
-          const userCount = userConnections.length;
-          console.log(userCount);
-  
-          other_users.forEach((v) => {
-              socket.to(v.connectionId).emit("inform_others_about_me", {
-                  other_user_id: data.displayName,
-                  connId: socket.id,
-                  userNumber: userCount,
-              });
-          });
-  
-          socket.emit("inform_me_about_other_user", other_users);
+io.on("connection", (socket) => {
+  console.log("socket id is ", socket.id);
+
+  socket.on("userconnect", (data) => {
+    console.log("userconnect", data.displayName, data.meetingid);
+    const other_users = userConnections.filter(
+      (p) => p.meeting_id == data.meetingid
+    );
+
+    userConnections.push({
+      connectionId: socket.id,
+      user_id: data.displayName,
+      meeting_id: data.meetingid,
+    });
+
+    const userCount = userConnections.length;
+    console.log(userCount);
+
+    other_users.forEach((v) => {
+      socket.to(v.connectionId).emit("inform_others_about_me", {
+        other_user_id: data.displayName,
+        connId: socket.id,
+        userNumber: userCount,
       });
-  
-      socket.on("SDPProcess", (data) => {
-          socket.to(data.to_connid).emit("SDPProcess", {
-              message: data.message,
-              from_connid: socket.id,
-          });
-      });
-  
-      socket.on("sendMessage", (msg) => {
-          console.log(msg);
-          const mUser = userConnections;
-      });
+    });
+
+    socket.emit("inform_me_about_other_user", other_users);
   });
+
+  socket.on("SDPProcess", (data) => {
+    socket.to(data.to_connid).emit("SDPProcess", {
+      message: data.message,
+      from_connid: socket.id,
+    });
+  });
+
+  socket.on("sendMessage", (msg) => {
+    console.log(msg);
+    const mUser = userConnections;
+  });
+
+  socket.on("disconnect", () => {
+    const index = userConnections.findIndex(
+      (user) => user.connectionId === socket.id
+    );
+
+    if (index !== -1) {
+      const disconnectedUser = userConnections.splice(index, 1)[0];
+      io.emit("inform_other_about_disconnected_user", disconnectedUser);
+    }
+  });
+});
   
 
   server.listen(port, () => {
